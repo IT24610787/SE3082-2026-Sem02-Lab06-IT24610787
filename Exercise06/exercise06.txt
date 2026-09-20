@@ -1,0 +1,103 @@
+EXERCISE 6: Strip-mined element-wise array multiplication
+
+Question
+--------
+Given arrays A[], B[], C[] of size N = 1,000,000, compute
+C[i] = A[i] * B[i] for all i, using
+  1. strip mining (fixed-size strips),
+  2. OpenMP to parallelize across threads,
+  3. a strip size that aligns with the SIMD vector width.
+
+File
+----
+stripmine.c   serial baseline + strip-mined OpenMP version + verification + timing
+
+How I ran it
+------------
+   gcc -O2 -fopenmp -march=native stripmine.c -o stripmine
+   OMP_NUM_THREADS=2 ./stripmine 100          # argument = number of repetitions
+Other strip sizes:
+   gcc -O2 -fopenmp -march=native -DSTRIP=64 stripmine.c -o stripmine_64
+Check that the inner loop was vectorized:
+   gcc -O2 -fopenmp -march=native -fopt-info-vec-optimized stripmine.c -o stripmine
+
+What strip mining means here
+----------------------------
+Strip mining splits one long loop into two nested loops: an OUTER loop over
+strips and an INNER loop over the elements of one strip.
+
+   for (s = 0; s < number_of_strips; s++)      <- parallelized (threads)
+       for (i = 0; i < STRIP; i++)             <- vectorized (SIMD)
+           C[s*STRIP + i] = A[s*STRIP + i] * B[s*STRIP + i];
+
+  - `#pragma omp parallel for` on the outer loop shares the strips among the
+    threads. With schedule(static) each thread gets a block of consecutive
+    strips, so it works on contiguous memory.
+  - `#pragma omp simd` on the inner loop tells the compiler to use SIMD
+    instructions: one instruction multiplies several floats at once.
+  So two levels of parallelism are used: threads across strips, SIMD within
+  a strip.
+
+Strip size and SIMD width
+-------------------------
+The arrays are float (4 bytes). Number of floats per vector register:
+   SSE      128-bit ->  4 floats
+   AVX2     256-bit ->  8 floats
+   AVX-512  512-bit -> 16 floats
+The strip size must be a multiple of the vector width so that every strip is
+a whole number of vectors (no scalar leftover elements inside a strip).
+I used STRIP = 1024 floats: it is a multiple of 4, 8 and 16, so it is aligned
+with any of these widths, and 3 strips of 4 KB (A, B, C) easily fit in L1
+cache. (The arrays are also allocated 64-byte aligned with aligned_alloc.)
+The SIMD support of my instance (from lscpu): SSE4.1, SSE4.2, AVX, AVX2,
+AVX-512 (F, CD, BW, DQ, VL)
+
+Remainder strip
+---------------
+N = 1,000,000 is not divisible by 1024: there are 976 full strips and a
+remainder of 576 elements. The remainder is handled by a separate loop after
+the strip loop, so the result is correct for any strip size.
+
+Compiler flags
+--------------
+-fopenmp enables the OpenMP pragmas. Without -march=native (or e.g. -mavx2)
+GCC generates only baseline x86-64 vector code (128-bit SSE), so the wider
+vector registers are not used. The serial baseline has auto-vectorization
+switched off, so it is a scalar reference.
+
+Results
+--------------------------------------
+Instance: nproc = 2 , lscpu SIMD flags = <see below> , STRIP = 1024
+Vector width used (from -fopt-info-vec-optimized): 32 byte vectors
+Verification: OK (0 mismatches)
+
+Threads | Serial scalar (ms/pass) | Strip-mined (ms/pass) | Speedup (vs 1.0759 ms)
+--------+-------------------------+-----------------------+-----------------------
+   1    | 1.0759                  | 0.5586                | 1.93
+   2    | 1.0942                  | 0.5082                | 2.12
+   4    | 1.4567                  | 0.5825                | 1.85
+
+Strip size (floats) | Strip-mined (ms/pass, 2 threads) | Speedup (vs 1.0759 ms)
+--------------------+----------------------------------+-----------------------
+         4          | 0.4901                           | 2.20
+         8          | 0.5049                           | 2.13
+        16          | 0.5062                           | 2.13
+        64          | 0.5084                           | 2.12
+      1024          | 0.5087                           | 2.11
+      4096          | 0.5061                           | 2.13
+     16384          | 0.5346                           | 2.01
+
+Observations
+------------
+The strip-mined version was verified against the serial result in every run
+(0 mismatches). GCC vectorized the inner loop with 32-byte (256-bit) vectors,
+8 floats per instruction. With 1 thread the strip-mined version was already
+about 1.9x faster than the scalar baseline, so most of the gain comes from
+SIMD. Adding threads helped little (2.12x with 2 threads, 1.85x with 4,
+against the fastest serial time of 1.0759 ms): the instance has 1 core with 2
+hyperthreads, and 4 threads oversubscribe the 2 vCPUs. The kernel does one
+multiply per 12 bytes moved, so it is likely limited by memory bandwidth
+rather than arithmetic, which would also explain why the speedup is far below
+the 8x vector width. Strip size (4 to 16384 floats) changed the time by only
+about 10% at most, mostly within run-to-run noise, so any strip size that is
+a multiple of the vector width performed about the same here.
