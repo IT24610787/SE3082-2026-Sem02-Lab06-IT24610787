@@ -1,1 +1,151 @@
+EXERCISE 4: parallel for vs parallel for collapse(2)
 
+Question
+--------
+1. Run the code using qsub and briefly describe how the threads are
+   generated for this code.
+2. When you replace the pragma with `#pragma omp parallel for collapse(2)`,
+   how are the threads generated?
+
+How I ran it
+------------
+   gcc -fopenmp ex4.c -o ex4
+   gcc -fopenmp ex4_collapse.c -o ex4_collapse
+   OMP_NUM_THREADS=8 ./ex4
+   OMP_NUM_THREADS=8 ./ex4_collapse
+Count iterations per thread:
+   OMP_NUM_THREADS=8 ./ex4 | awk '{print $NF}' | sort -n | uniq -c
+
+Observed output (paste yours, or a summary of iterations per thread)
+--------------------------------------------------------------------
+ex4 (parallel for):
+r = 2, k = 1, thread # = 1
+r = 2, k = 2, thread # = 1
+r = 2, k = 3, thread # = 1
+r = 2, k = 4, thread # = 1
+r = 2, k = 5, thread # = 1
+r = 2, k = 6, thread # = 1
+r = 2, k = 7, thread # = 1
+r = 2, k = 8, thread # = 1
+r = 2, k = 9, thread # = 1
+r = 2, k = 10, thread # = 1
+r = 3, k = 1, thread # = 2
+r = 4, k = 1, thread # = 3
+r = 5, k = 1, thread # = 4
+r = 5, k = 2, thread # = 4
+r = 5, k = 3, thread # = 4
+r = 5, k = 4, thread # = 4
+r = 5, k = 5, thread # = 4
+r = 5, k = 6, thread # = 4
+r = 5, k = 7, thread # = 4
+r = 5, k = 8, thread # = 4
+r = 5, k = 9, thread # = 4
+r = 5, k = 10, thread # = 4
+r = 3, k = 2, thread # = 2
+r = 3, k = 3, thread # = 2
+r = 3, k = 4, thread # = 2
+r = 3, k = 5, thread # = 2
+r = 3, k = 6, thread # = 2
+r = 3, k = 7, thread # = 2
+r = 3, k = 8, thread # = 2
+r = 3, k = 9, thread # = 2
+r = 3, k = 10, thread # = 2
+r = 1, k = 1, thread # = 0
+r = 1, k = 2, thread # = 0
+r = 4, k = 2, thread # = 3
+r = 1, k = 3, thread # = 0
+r = 4, k = 3, thread # = 3
+r = 1, k = 4, thread # = 0
+r = 1, k = 5, thread # = 0
+r = 1, k = 6, thread # = 0
+r = 1, k = 7, thread # = 0
+r = 1, k = 8, thread # = 0
+r = 1, k = 9, thread # = 0
+r = 1, k = 10, thread # = 0
+r = 4, k = 4, thread # = 3
+r = 4, k = 5, thread # = 3
+r = 4, k = 6, thread # = 3
+r = 4, k = 7, thread # = 3
+r = 4, k = 8, thread # = 3
+r = 4, k = 9, thread # = 3
+r = 4, k = 10, thread # = 3
+
+ex4_collapse (parallel for collapse(2)):
+r = 5, k = 5, thread # = 7
+r = 4, k = 9, thread # = 6
+r = 1, k = 8, thread # = 1
+r = 2, k = 5, thread # = 2
+r = 2, k = 6, thread # = 2
+r = 2, k = 7, thread # = 2
+r = 2, k = 8, thread # = 2
+r = 2, k = 9, thread # = 2
+r = 2, k = 10, thread # = 2
+r = 4, k = 10, thread # = 6
+r = 5, k = 1, thread # = 6
+r = 5, k = 2, thread # = 6
+r = 5, k = 3, thread # = 6
+r = 5, k = 4, thread # = 6
+r = 3, k = 7, thread # = 4
+r = 3, k = 8, thread # = 4
+r = 3, k = 9, thread # = 4
+r = 3, k = 10, thread # = 4
+r = 4, k = 1, thread # = 4
+r = 4, k = 2, thread # = 4
+r = 5, k = 6, thread # = 7
+r = 5, k = 7, thread # = 7
+r = 1, k = 1, thread # = 0
+r = 1, k = 2, thread # = 0
+r = 1, k = 3, thread # = 0
+r = 1, k = 4, thread # = 0
+r = 4, k = 3, thread # = 5
+r = 4, k = 4, thread # = 5
+r = 4, k = 5, thread # = 5
+r = 4, k = 6, thread # = 5
+r = 4, k = 7, thread # = 5
+r = 4, k = 8, thread # = 5
+r = 5, k = 8, thread # = 7
+r = 5, k = 9, thread # = 7
+r = 5, k = 10, thread # = 7
+r = 1, k = 5, thread # = 0
+r = 1, k = 9, thread # = 1
+r = 1, k = 10, thread # = 1
+r = 2, k = 1, thread # = 1
+r = 2, k = 2, thread # = 1
+r = 2, k = 3, thread # = 1
+r = 2, k = 4, thread # = 1
+r = 1, k = 6, thread # = 0
+r = 1, k = 7, thread # = 0
+r = 3, k = 1, thread # = 3
+r = 3, k = 2, thread # = 3
+r = 3, k = 3, thread # = 3
+r = 3, k = 4, thread # = 3
+r = 3, k = 5, thread # = 3
+r = 3, k = 6, thread # = 3
+
+Explanation
+-----------
+Part 1: `#pragma omp parallel for`
+  A team of threads is created, and the iterations of the loop directly
+  after the pragma are shared out among them. That is only the OUTER loop
+  (r = 1..5), i.e. 5 iterations. Each thread gets some of the r values and
+  runs the ENTIRE inner loop (k = 1..10) for each r it owns. So all 10 lines
+  for a given r come from the same thread.
+  Consequence: at most 5 threads get any work. With 8 threads, 3 threads
+  are idle. With 4 threads, one thread gets 2 values of r, so the work is
+  uneven (20 vs 10 lines).
+  (How the 5 iterations are assigned depends on the default schedule, which
+  is implementation-defined; with GCC it is normally static, i.e. blocks of
+  consecutive r values. Check this against your own output.)
+
+Part 2: `#pragma omp parallel for collapse(2)`
+  collapse(2) merges the two nested loops into ONE iteration space of
+  5 x 10 = 50 (r, k) pairs, and those 50 iterations are shared among the
+  threads. Now all threads can be used (with 8 threads each gets about 6-7
+  iterations), the load is more even, and the 10 iterations of one r value
+  may be split across different threads.
+  Requirement: the loops must be perfectly nested (nothing between the two
+  `for` statements), and the inner loop bounds must not depend on the outer
+  loop variable.
+
+Summary: without collapse the parallelism is limited to 5 iterations; with
+collapse it is 50, which scales to more threads.

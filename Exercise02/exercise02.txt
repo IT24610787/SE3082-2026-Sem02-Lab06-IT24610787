@@ -1,1 +1,48 @@
+EXERCISE 2: #pragma omp single
 
+Question
+--------
+Run the code in the AWS EC2 instance and briefly describe how
+`#pragma omp single` works in this program.
+
+How I ran it
+------------
+   gcc -fopenmp ex2.c -o ex2
+   OMP_NUM_THREADS=4 ./ex2
+
+Observed output (paste yours)
+-----------------------------
+thread # 1
+Inside Single # 1
+Exiting Single
+thread # 3
+thread # 2
+thread # 0
+Hi again from thread # 2
+Hi again from thread # 0
+Hi again from thread # 1
+Hi again from thread # 3
+
+Explanation
+-----------
+`#pragma omp single` makes the following block run by exactly ONE thread of
+the team. Here "Inside Single # N" and "Exiting Single" are printed once,
+not once per thread.
+
+- Which thread runs it is not fixed: it is whichever thread reaches the
+  block first (not necessarily thread 0), so N can differ between runs.
+- The other threads skip the block. At the END of a `single` block there is
+  an implicit barrier: the other threads wait there until the executing
+  thread has finished. So every "Hi again from thread # N" line appears
+  after "Exiting Single".
+- The implicit barrier can be removed with `#pragma omp single nowait`.
+
+Extra experiment (ex2_demo.c): the single block sleeps for 1 second.
+  gcc -fopenmp ex2_demo.c -o ex2_demo            # implicit barrier
+  gcc -fopenmp -DNOWAIT ex2_demo.c -o ex2_demo_nowait   # no barrier
+With the barrier, the "Hi again" lines all appear after "Exiting Single"
+(about 1 s later). With nowait, the other threads print "Hi again" straight
+away, before "Exiting Single".
+
+Extra observed output (optional):
+<PASTE OUTPUT HERE>

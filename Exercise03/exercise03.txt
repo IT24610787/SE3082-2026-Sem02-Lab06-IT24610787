@@ -1,1 +1,52 @@
+EXERCISE 3: #pragma omp master
 
+Question
+--------
+Run the code in the AWS EC2 instance and briefly describe how
+`#pragma omp master` works in this program.
+
+Fix needed in the README code
+-----------------------------
+As given, the code does not compile: `return 0;` is inside the parallel
+block and the closing brace of main() is missing. A `return` may not jump
+out of a parallel region, so `return 0;` was moved after the parallel
+block and the braces were closed (see ex3.c).
+
+How I ran it
+------------
+   gcc -fopenmp ex3.c -o ex3
+   OMP_NUM_THREADS=4 ./ex3
+
+Observed output
+-----------------------------
+thread # 3
+Hi again from thread # 3
+thread # 1
+Hi again from thread # 1
+thread # 0
+Inside Master # 0
+thread # 2
+Exiting Master 
+Hi again from thread # 2
+Hi again from thread # 0
+
+Explanation
+-----------
+`#pragma omp master` makes the following block run only by the master
+thread, which is always thread 0. "Inside Master # 0" and "Exiting Master"
+are printed once, and the number is always 0 (unlike `single`, where the
+executing thread can vary).
+
+Unlike `single`, `master` has NO implicit barrier, either at the start or
+at the end. The other threads skip the block and continue immediately, so
+their "Hi again from thread # N" lines can appear before, during or after
+the master thread's lines.
+
+If the other threads must wait for the master block, add an explicit
+`#pragma omp barrier` after it.
+
+Extra experiment (ex3_demo.c): the master block sleeps for 1 second.
+  gcc -fopenmp ex3_demo.c -o ex3_demo               # no barrier
+  gcc -fopenmp -DBARRIER ex3_demo.c -o ex3_demo_barrier   # explicit barrier
+Without the barrier, the other threads print "Hi again" immediately.
+With the barrier, they wait until the master block is finished.

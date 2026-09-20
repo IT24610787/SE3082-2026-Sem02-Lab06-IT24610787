@@ -1,0 +1,43 @@
+EXERCISE 1: #pragma omp barrier
+
+Question
+--------
+Run the code using qsub and briefly describe how `#pragma omp barrier`
+works in this program.
+
+Observed output
+---------------------------------------------
+thread # 1
+thread # 3
+thread # 2
+thread # 0
+Outside Barrier # 0
+Outside Barrier # 2
+Hi again from thread # 0
+Hi again from thread # 2
+Outside Barrier # 1
+Hi again from thread # 1
+Outside Barrier # 3
+Hi again from thread # 3
+
+Explanation
+-----------
+The program starts a parallel region, so a team of threads runs the same
+block. Each thread first prints "thread # N" (its own thread number).
+
+`#pragma omp barrier` is a synchronization point: a thread that reaches it
+stops and waits until EVERY thread in the team has reached it. Only then
+do all threads continue.
+
+Effect in this program: all "thread # N" lines are printed before any
+"Outside Barrier # N" or "Hi again from thread # N" line. Without the
+barrier, a fast thread could print its "Outside Barrier" line while a slow
+thread had not yet printed "thread # N", so the two kinds of line would mix.
+
+The order of threads inside each group (before the barrier / after the
+barrier) is not fixed and changes from run to run, because the threads run
+concurrently. The barrier only guarantees the ordering BETWEEN the two
+groups, not within them.
+
+Note: every thread in the team must reach a barrier, otherwise the
+program can hang (deadlock). With 1 thread the barrier has no visible effect.
