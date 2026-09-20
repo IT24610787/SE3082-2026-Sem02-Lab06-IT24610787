@@ -133,9 +133,7 @@ Part 1: `#pragma omp parallel for`
   Consequence: at most 5 threads get any work. With 8 threads, 3 threads
   are idle. With 4 threads, one thread gets 2 values of r, so the work is
   uneven (20 vs 10 lines).
-  (How the 5 iterations are assigned depends on the default schedule, which
-  is implementation-defined; with GCC it is normally static, i.e. blocks of
-  consecutive r values. Check this against your own output.)
+
 
 Part 2: `#pragma omp parallel for collapse(2)`
   collapse(2) merges the two nested loops into ONE iteration space of

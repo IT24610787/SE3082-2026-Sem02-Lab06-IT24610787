@@ -1,1 +1,85 @@
-
+EXERCISE 5: Parallel Fibonacci using tasks
+ 
+Question
+--------
+Parallelize the serial Fibonacci code using task parallelization.
+ 
+Files
+-----
+fib_serial.c  serial version from the README (with timing)
+fib_task.c    task-parallel version (with cutoff and timing)
+ 
+How I ran it
+------------
+   gcc -O2 -fopenmp fib_serial.c -o fib_serial
+   gcc -O2 -fopenmp fib_task.c -o fib_task
+   ./fib_serial 45
+   OMP_NUM_THREADS=4 ./fib_task 45 20        # arguments: n, cutoff
+Both programs were compiled with the same flags so the times are comparable.
+(-fopenmp is needed for fib_serial.c too, only because it calls omp_get_wtime.)
+ 
+How the code is parallelized
+----------------------------
+1. `#pragma omp parallel` creates a team of threads, and `#pragma omp single`
+   inside it lets exactly ONE thread call fib_task(n). That thread creates
+   the first task; the other threads in the team pick up tasks from the
+   task pool and execute them. Without `single`, every thread would call
+   fib_task(n) and the whole computation would be repeated by each thread.
+ 
+2. In fib_task, each recursive call becomes a task:
+       #pragma omp task shared(i)
+       i = fib_task(n-1, cutoff);
+       #pragma omp task shared(j)
+       j = fib_task(n-2, cutoff);
+   `shared(i)` / `shared(j)` are needed because i and j are local variables
+   of the function. Variables that are private in the surrounding code are
+   firstprivate by default inside a task, so the task would write to its own
+   copy and the parent would never see the result.
+ 
+3. `#pragma omp taskwait` makes the parent wait until its two child tasks
+   have finished, so i and j are complete before `return i + j`.
+ 
+4. Cutoff: when n < cutoff, the code calls the plain serial function instead
+   of creating tasks. Creating and scheduling a task costs time, and for
+   small n the actual work (a few additions) is smaller than that cost, so
+   without a cutoff the overhead can dominate and the parallel version may
+   be slower than the serial one. (Measure this: run with cutoff 2, which
+   means "always create tasks".)
+ 
+Note: the return type is int, so n must be 46 or less (fib(47) overflows int).
+ 
+Results (fill in after running on EC2)
+--------------------------------------
+n = 45      cutoff = 20     vCPUs on instance (nproc) = 2
+Serial time (fib_serial): 3.276739 s       fib(n) = 1134903170
+ 
+Threads | Time (s) | Speedup (serial / parallel) | Same result as serial?
+--------+----------+-----------------------------+-----------------------
+   1    | 2.881688 |        1.14                 |      Yes
+   2    | 2.904785 |        1.13                 |      Yes
+   4    | 3.527335 |        0.93                 |      Yes
+   8    | 3.048442 |        1.07                 |      Yes
+ 
+Effect of the cutoff (fixed thread count = 4, n = 32)
+ 
+Cutoff | Time (s)
+-------+---------
+   2   | 2.938288
+  10   | 0.074904
+  20   | 0.006082
+  25   | 0.005832
+  30   | 0.005689
+ 
+Observations
+------------
+The instance has 2 vCPUs, but lscpu reports 1 core with 2 hardware threads
+(hyperthreading), so both share one core's execution resources. Running two
+serial copies at once took 6.03 s each versus 3.28 s alone, i.e. only about
+1.09x the throughput of a single copy. As a result, the task version showed
+no meaningful speedup over serial (speedups 0.93 to 1.14 for 1 to 8 threads;
+differences of this size are within run-to-run noise). The results were
+identical to the serial version in every run, and `time` showed both threads
+busy with 2 threads (user 4.885 s, real 2.913 s), so the limit is the hardware,
+not the parallelization. The cutoff had a large effect (n = 32, 4 threads):
+2.94 s at cutoff 2 versus about 0.006 s at cutoff 20 or more, because creating
+a task for every small subproblem costs far more than the work itself.

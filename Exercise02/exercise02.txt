@@ -37,12 +37,3 @@ not once per thread.
   after "Exiting Single".
 - The implicit barrier can be removed with `#pragma omp single nowait`.
 
-Extra experiment (ex2_demo.c): the single block sleeps for 1 second.
-  gcc -fopenmp ex2_demo.c -o ex2_demo            # implicit barrier
-  gcc -fopenmp -DNOWAIT ex2_demo.c -o ex2_demo_nowait   # no barrier
-With the barrier, the "Hi again" lines all appear after "Exiting Single"
-(about 1 s later). With nowait, the other threads print "Hi again" straight
-away, before "Exiting Single".
-
-Extra observed output (optional):
-<PASTE OUTPUT HERE>

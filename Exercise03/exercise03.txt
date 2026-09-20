@@ -44,9 +44,3 @@ the master thread's lines.
 
 If the other threads must wait for the master block, add an explicit
 `#pragma omp barrier` after it.
-
-Extra experiment (ex3_demo.c): the master block sleeps for 1 second.
-  gcc -fopenmp ex3_demo.c -o ex3_demo               # no barrier
-  gcc -fopenmp -DBARRIER ex3_demo.c -o ex3_demo_barrier   # explicit barrier
-Without the barrier, the other threads print "Hi again" immediately.
-With the barrier, they wait until the master block is finished.
